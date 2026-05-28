@@ -8,6 +8,11 @@
  */
 #define MASTER_LEFT
 
+// Definisikan pin serial secara eksplisit untuk komunikasi kiri <-> kanan
+// Corne Rev1 menggunakan pin D2 untuk komunikasi antar sisi via TRRS
+#define SOFT_SERIAL_PIN D2
+#define SPLIT_TRANSPORT_MIRROR
+
 // RGB Light and OLED_TIMEOUT settings have been removed
 // Custom OLED timeout and dimming logic is handled in keymap.c
 
