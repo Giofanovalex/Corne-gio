@@ -256,10 +256,10 @@ void render_luna_pose(uint8_t frame) {
 
 // ------------------------------------------
 // RENDER LAYAR KIRI (Master)
-// Layout: [Kanji 希望] [Layer] [Capslock] [Luna]
+// Layout: [Kibou] [Layer] [Capslock] [Luna]
 // ------------------------------------------
 void render_master(void) {
-    // Kanji 希望 di atas (2 char x 16px = 4 baris pixel = baris 0-3 di mode 270)
+    // Kanji 希望 di atas
     render_kanji_left();
 
     // Spacer
@@ -291,13 +291,11 @@ void render_master(void) {
     oled_set_cursor(0, 9);
     oled_write_P(led.caps_lock ? PSTR("ON   ") : PSTR("off  "), false);
 
-    // Spacer
+    // Spacer (baris 10-11, gantikan label "Pet" dengan spasi kosong)
     oled_set_cursor(0, 10);
     oled_write_P(PSTR("     "), false);
-
-    // "Pet" label
     oled_set_cursor(0, 11);
-    oled_write_P(PSTR(" Pet "), false);
+    oled_write_P(PSTR("     "), false);
 
     // Luna animasi (baris 12-13)
     static uint8_t  luna_frame       = 0;
@@ -315,33 +313,46 @@ void render_master(void) {
             }
         }
     }
-    // Clear baris luna sebelum render baru
-    oled_set_cursor(0, 12);
-    oled_write_P(PSTR("                "), false);
-    oled_set_cursor(0, 13);
-    oled_write_P(PSTR("                "), false);
+    // Clear baris luna dengan 0x00 agar tidak ada pixel stuck
+    // Setiap baris = 32 byte pada layar 270° Corne
+    static const char PROGMEM clear_row[LUNA_FRAME_LENGTH] = {0};
+    oled_set_cursor(LUNA_X, 12);
+    oled_write_raw_P(clear_row, LUNA_FRAME_LENGTH);
+    oled_set_cursor(LUNA_X, 13);
+    oled_write_raw_P(clear_row, LUNA_FRAME_LENGTH);
     render_luna_pose(luna_frame);
 }
 
 // ------------------------------------------
 // RENDER LAYAR KANAN (Slave)
-// Layout: [Kanji 夢を見た] [wpm] [angka WPM]
+// Dibuat sesederhana mungkin agar tidak crash dan tidak mengganggu komunikasi TRRS
 // ------------------------------------------
 void render_slave(void) {
-    // Kanji 夢を見た di atas (4 char x 16px = 8 baris di mode 270)
-    render_kanji_right();
+    // Baris 0-1: Label judul
+    oled_set_cursor(0, 0);
+    oled_write_P(PSTR("Yume "), false);
+    oled_set_cursor(0, 1);
+    oled_write_P(PSTR("o    "), false);
+    oled_set_cursor(0, 2);
+    oled_write_P(PSTR("Mita "), false);
 
     // Spacer
-    oled_set_cursor(0, 8);
+    oled_set_cursor(0, 3);
+    oled_write_P(PSTR("     "), false);
+    oled_set_cursor(0, 4);
+    oled_write_P(PSTR("-----"), false);
+    oled_set_cursor(0, 5);
     oled_write_P(PSTR("     "), false);
 
     // WPM label
-    oled_set_cursor(0, 9);
+    oled_set_cursor(0, 6);
     oled_write_P(PSTR("wpm  "), false);
 
-    // Angka WPM
-    oled_set_cursor(0, 10);
-    oled_write(get_u8_str(get_current_wpm(), '0'), false);
+    // Angka WPM — snprintf aman di semua versi QMK
+    char wpm_str[4];
+    snprintf(wpm_str, sizeof(wpm_str), "%3d", get_current_wpm());
+    oled_set_cursor(0, 7);
+    oled_write(wpm_str, false);
 }
 
 // ------------------------------------------
