@@ -1,0 +1,387 @@
+#include QMK_KEYBOARD_H
+
+/*
+ * Definisikan nama-nama layer Anda.
+ * _QWERTY adalah base layer (layer default).
+ * _LOWER dan _RAISE diakses menggunakan tombol jempol.
+ * _ADJUST otomatis aktif ketika _LOWER dan _RAISE ditekan bersamaan!
+ */
+enum custom_layers {
+    _QWERTY,
+    _LOWER,
+    _RAISE,
+    _ADJUST
+};
+
+/*
+ * Definisikan Keymap Anda di sini.
+ * Anda bisa melakukan tweak/ganti keycode di bawah ini sesuai selera Anda!
+ */
+const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
+    [_QWERTY] = LAYOUT_split_3x6_3(
+        KC_TAB,  KC_Q,    KC_W,    KC_E,    KC_R,    KC_T,        KC_Y,    KC_U,    KC_I,    KC_O,    KC_P,    KC_BSPC,
+        KC_LCTL, KC_A,    KC_S,    KC_D,    KC_F,    KC_G,        KC_H,    KC_J,    KC_K,    KC_L,    KC_SCLN, KC_QUOT,
+        KC_LSFT, KC_Z,    KC_X,    KC_C,    KC_V,    KC_B,        KC_N,    KC_M,    KC_COMM, KC_DOT,  KC_SLSH, KC_ESC,
+                         KC_LGUI, MO(_LOWER), KC_SPC,            KC_ENT,  MO(_RAISE), KC_RALT
+    ),
+    [_LOWER] = LAYOUT_split_3x6_3(
+        KC_TAB,  KC_EXLM, KC_AT,   KC_HASH, KC_DLR,  KC_PERC,    KC_CIRC, KC_AMPR, KC_ASTR, KC_LPRN, KC_RPRN, KC_BSPC,
+        KC_LCTL, KC_1,    KC_2,    KC_3,    KC_4,    KC_5,        KC_6,    KC_7,    KC_8,    KC_9,    KC_0,    KC_QUOT,
+        KC_LSFT, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS,    KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS,
+                         KC_LGUI, KC_TRNS,  KC_SPC,              KC_ENT,  KC_TRNS, KC_RALT
+    ),
+    [_RAISE] = LAYOUT_split_3x6_3(
+        KC_TAB,  KC_EXLM, KC_AT,   KC_HASH, KC_DLR,  KC_PERC,    KC_CIRC, KC_AMPR, KC_ASTR, KC_LPRN, KC_RPRN, KC_BSPC,
+        KC_LCTL, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS,    KC_MINS, KC_EQL,  KC_LBRC, KC_RBRC, KC_BSLS, KC_GRV,
+        KC_LSFT, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS,    KC_UNDS, KC_PLUS, KC_LCBR, KC_RCBR, KC_PIPE, KC_TILD,
+                         KC_LGUI, KC_TRNS,  KC_SPC,              KC_ENT,  KC_TRNS, KC_RALT
+    ),
+    [_ADJUST] = LAYOUT_split_3x6_3(
+        KC_TAB,  KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS,    KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_BSPC,
+        KC_LCTL, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS,    KC_LEFT, KC_DOWN, KC_UP,   KC_RGHT, KC_TRNS, KC_TRNS,
+        KC_LSFT, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS,    KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS,
+                         KC_LGUI, KC_TRNS,  KC_SPC,              KC_ENT,  KC_TRNS, KC_RALT
+    )
+};
+
+// Tri-layer: ADJUST aktif otomatis saat LOWER + RAISE ditekan bersamaan
+layer_state_t layer_state_set_user(layer_state_t state) {
+    return update_tri_layer_state(state, _LOWER, _RAISE, _ADJUST);
+}
+
+// ==========================================
+// TIMER IDLE & STATE LUNA
+// ==========================================
+static uint32_t custom_last_input = 0;
+
+// State Luna: digunakan untuk animasi (tracking tombol Ctrl, Space, Caps)
+static bool     luna_is_sneaking   = false;
+static bool     luna_is_jumping    = false;
+static bool     luna_jumped_up     = false;
+
+bool process_record_user(uint16_t keycode, keyrecord_t *record) {
+    if (record->event.pressed) {
+        custom_last_input = timer_read32();
+    }
+    // Deteksi Ctrl (sneak), Space (jump) untuk animasi Luna
+    switch (keycode) {
+        case KC_LCTL:
+        case KC_RCTL:
+            luna_is_sneaking = record->event.pressed;
+            break;
+        case KC_SPC:
+            if (record->event.pressed) {
+                luna_is_jumping  = true;
+                luna_jumped_up   = false;
+            }
+            break;
+    }
+    return true;
+}
+
+// ==========================================
+// OLED SECTION
+// ==========================================
+#ifdef OLED_ENABLE
+
+oled_rotation_t oled_init_user(oled_rotation_t rotation) {
+    return OLED_ROTATION_270; // Layar vertikal pada Corne
+}
+
+// ------------------------------------------
+// KANJI BITMAP — Layar Kiri: "希望" (Kibou / Harapan)
+// Setiap karakter = 16x16 pixel yang di-render dua baris (8px per pass)
+// Disimpan dalam PROGMEM agar tidak makan RAM
+// ------------------------------------------
+static const char PROGMEM kanji_kibou[] = {
+    // "希" — harap — 16x16 pixel, split menjadi 2 baris 8px
+    0x00,0x00,0x04,0x3E,0x44,0x44,0x7C,0x44,0x44,0x3E,0x04,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x10,0x08,0x04,0x7E,0x01,0x01,0x7F,0x01,0x01,0x7E,0x04,0x08,0x10,0x00,0x00,
+    // "望" — impian/harap — 16x16 pixel
+    0x00,0x10,0x14,0xFF,0x14,0x10,0x7E,0x10,0xFE,0x10,0x7E,0x10,0xFF,0x14,0x10,0x00,
+    0x00,0x02,0x02,0xFF,0x02,0x02,0x1E,0x12,0x13,0x12,0x1E,0x02,0xFF,0x02,0x02,0x00,
+};
+
+// ------------------------------------------
+// KANJI BITMAP — Layar Kanan: "夢を見た" (Yume o mita / Aku bermimpi)
+// ------------------------------------------
+static const char PROGMEM kanji_yume[] = {
+    // "夢" — mimpi
+    0x00,0x38,0x24,0xFF,0x24,0x38,0x20,0xFF,0x28,0x24,0xFF,0x22,0x22,0xFF,0x20,0x00,
+    0x00,0x04,0x04,0xFF,0x44,0x44,0x44,0xFF,0x54,0x54,0xFF,0x44,0x44,0xFF,0x04,0x00,
+    // "を"
+    0x00,0x40,0x42,0x42,0x42,0xFE,0x02,0x02,0xFE,0x02,0x02,0x42,0x42,0x7E,0x40,0x00,
+    0x00,0x00,0x40,0x20,0x18,0x07,0x00,0x00,0x07,0x18,0x20,0x40,0x00,0x00,0x00,0x00,
+    // "見"
+    0x00,0x7E,0x42,0x42,0x42,0x7E,0x00,0xFE,0x10,0x28,0x44,0x82,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0x01,0x01,0x01,0xFF,0x00,0x00,0x00,0x00,
+    // "た"
+    0x00,0x04,0x04,0xFF,0x04,0x04,0x04,0xFC,0x04,0x04,0x04,0xFF,0x04,0x04,0x00,0x00,
+    0x00,0x00,0x00,0x7F,0x00,0x00,0x00,0x3F,0x40,0x40,0x40,0x7F,0x00,0x00,0x00,0x00,
+};
+
+// Render Kanji di layar kiri (希望)
+void render_kanji_left(void) {
+    oled_set_cursor(0, 0);
+    oled_write_raw_P(kanji_kibou, sizeof(kanji_kibou));
+}
+
+// Render Kanji di layar kanan (夢を見た)
+void render_kanji_right(void) {
+    oled_set_cursor(0, 0);
+    oled_write_raw_P(kanji_yume, sizeof(kanji_yume));
+}
+
+// ------------------------------------------
+// LUNA — Animasi Anjing Pixel Art
+// Frame: SIT (diam), WALK 1 & 2 (jalan), RUN 1 & 2 (lari)
+// Frame JUMP 1 & 2 (lompat saat Space), BARK (Caps Lock)
+// ------------------------------------------
+#define LUNA_X 0
+#define LUNA_Y 13   // baris terakhir di layar 270° (128px / 8 = 16 baris, posisi bawah)
+
+static const char PROGMEM luna_sit[2][2][OLED_DISPLAY_HEIGHT / 2] = {
+    // Frame Sit 1
+    {{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xe0, 0xdc,
+       0xde, 0xdb, 0xdb, 0xdb, 0xdb, 0xdb, 0x9b, 0x1b, 0x18, 0x0b, 0x03, 0x40, 0x40, 0x20, 0x20, 0x20 },
+     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x1d,
+       0x35, 0xa1, 0x21, 0x11, 0x11, 0x09, 0x09, 0xc9, 0x29, 0x19, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00 }},
+    // Frame Sit 2 (sama seperti frame 1 untuk sit pose)
+    {{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xe0, 0xdc,
+       0xde, 0xdb, 0xdb, 0xdb, 0xdb, 0xdb, 0x9b, 0x1b, 0x18, 0x0b, 0x03, 0x40, 0x40, 0x20, 0x20, 0x20 },
+     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x1d,
+       0x35, 0xa1, 0x21, 0x11, 0x11, 0x09, 0x09, 0xc9, 0x29, 0x19, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00 }}
+};
+
+static const char PROGMEM luna_walk[2][2][OLED_DISPLAY_HEIGHT / 2] = {
+    // Walk frame 1
+    {{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x40, 0x20, 0x10, 0x90, 0x90, 0x10, 0x00, 0x00, 0xe0, 0xdc,
+       0xde, 0xdb, 0xdb, 0xdb, 0xdb, 0xdb, 0x9b, 0x1b, 0x18, 0x0b, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00 },
+     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x08, 0xfc, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x07, 0x1d,
+       0x35, 0xa1, 0x21, 0x11, 0x11, 0x09, 0x09, 0xc9, 0x29, 0x19, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00 }},
+    // Walk frame 2
+    {{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x40, 0x20, 0x20, 0x20, 0x40, 0x80, 0x00, 0xe0, 0xdc,
+       0xde, 0xdb, 0xdb, 0xdb, 0xdb, 0xdb, 0x9b, 0x1b, 0x18, 0x0b, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00 },
+     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x30, 0x40, 0x40, 0x40, 0x30, 0x0f, 0x00, 0x07, 0x1d,
+       0x35, 0xa1, 0x21, 0x11, 0x11, 0x09, 0x09, 0xc9, 0x29, 0x19, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00 }}
+};
+
+static const char PROGMEM luna_run[2][2][OLED_DISPLAY_HEIGHT / 2] = {
+    // Run frame 1
+    {{ 0x00, 0x00, 0x00, 0x80, 0x40, 0x20, 0x20, 0x20, 0x20, 0x40, 0x80, 0x00, 0x00, 0x00, 0xe0, 0xdc,
+       0xde, 0xdb, 0xdb, 0xdb, 0xdb, 0xdb, 0x9b, 0x1b, 0x18, 0x0b, 0x03, 0x40, 0x40, 0x20, 0x20, 0x20 },
+     { 0x00, 0x00, 0x00, 0x0f, 0x10, 0x20, 0x20, 0x20, 0x20, 0x10, 0x0f, 0x00, 0x00, 0x00, 0x07, 0x1d,
+       0x35, 0xa1, 0x21, 0x11, 0x11, 0x09, 0x09, 0xc9, 0x29, 0x19, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00 }},
+    // Run frame 2
+    {{ 0x00, 0x00, 0x40, 0x80, 0x00, 0x00, 0x00, 0x00, 0x80, 0x80, 0x40, 0x40, 0x00, 0x00, 0xe0, 0xdc,
+       0xde, 0xdb, 0xdb, 0xdb, 0xdb, 0xdb, 0x9b, 0x1b, 0x18, 0x0b, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00 },
+     { 0x00, 0x00, 0x00, 0x0f, 0x11, 0x21, 0x21, 0x11, 0x0f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x1d,
+       0x35, 0xa1, 0x21, 0x11, 0x11, 0x09, 0x09, 0xc9, 0x29, 0x19, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00 }}
+};
+
+static const char PROGMEM luna_bark[2][2][OLED_DISPLAY_HEIGHT / 2] = {
+    // Bark frame 1 (mulut terbuka)
+    {{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xe0, 0xdc,
+       0xde, 0xdb, 0xdb, 0xdb, 0xdb, 0xdb, 0x9b, 0x9b, 0x1b, 0x0b, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00 },
+     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x1d,
+       0x35, 0xa1, 0x21, 0x11, 0x11, 0x09, 0x09, 0xc9, 0xa9, 0x79, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00 }},
+    // Bark frame 2 (mulut tertutup)
+    {{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xe0, 0xdc,
+       0xde, 0xdb, 0xdb, 0xdb, 0xdb, 0xdb, 0x9b, 0x1b, 0x18, 0x0b, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00 },
+     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x1d,
+       0x35, 0xa1, 0x21, 0x11, 0x11, 0x09, 0x09, 0xc9, 0x29, 0x19, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00 }}
+};
+
+static const char PROGMEM luna_sneak[2][2][OLED_DISPLAY_HEIGHT / 2] = {
+    // Sneak frame 1 (membungkuk saat Ctrl)
+    {{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x40, 0x40, 0x20, 0xe0, 0xdc, 0xde, 0xdb, 0xdb, 0xdb,
+       0xdb, 0xdb, 0x9b, 0x1b, 0x18, 0x0b, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x18, 0x20, 0x20, 0x07, 0x1d, 0x35, 0xa1, 0x21, 0x11,
+       0x11, 0x09, 0x09, 0xc9, 0x29, 0x19, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }},
+    // Sneak frame 2
+    {{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x40, 0x40, 0x20, 0x20, 0xe0, 0xdc, 0xde, 0xdb, 0xdb, 0xdb,
+       0xdb, 0xdb, 0x9b, 0x1b, 0x18, 0x0b, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0x08, 0x08, 0x10, 0x10, 0x07, 0x1d, 0x35, 0xa1, 0x21, 0x11,
+       0x11, 0x09, 0x09, 0xc9, 0x29, 0x19, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }}
+};
+
+// Render satu frame Luna ke posisi LUNA_Y di layar
+void render_luna(uint8_t frame) {
+    uint8_t f = frame & 1; // 0 atau 1
+    // Row atas
+    oled_set_cursor(LUNA_X, LUNA_Y);
+    oled_write_raw_P(luna_sit[f][0], OLED_DISPLAY_HEIGHT / 2);
+    // Row bawah
+    oled_set_cursor(LUNA_X, LUNA_Y + 1);
+    oled_write_raw_P(luna_sit[f][1], OLED_DISPLAY_HEIGHT / 2);
+}
+
+// Render frame berdasarkan pose saat ini
+void render_luna_pose(uint8_t frame) {
+    uint8_t f = frame & 1;
+    uint8_t wpm = get_current_wpm();
+    led_t   led = host_keyboard_led_state();
+
+    const char (*top_row)   = NULL;
+    const char (*bot_row)   = NULL;
+
+    if (led.caps_lock) {
+        top_row = luna_bark[f][0];
+        bot_row = luna_bark[f][1];
+    } else if (luna_is_sneaking) {
+        top_row = luna_sneak[f][0];
+        bot_row = luna_sneak[f][1];
+    } else if (luna_is_jumping) {
+        // Untuk jump, kita pakai run frame dengan offset Y atas
+        top_row = luna_run[f][0];
+        bot_row = luna_run[f][1];
+    } else if (wpm > 40) {
+        top_row = luna_run[f][0];
+        bot_row = luna_run[f][1];
+    } else if (wpm > 10) {
+        top_row = luna_walk[f][0];
+        bot_row = luna_walk[f][1];
+    } else {
+        top_row = luna_sit[f][0];
+        bot_row = luna_sit[f][1];
+    }
+
+    uint8_t y_offset = (luna_is_jumping && !luna_jumped_up) ? LUNA_Y - 1 : LUNA_Y;
+    oled_set_cursor(LUNA_X, y_offset);
+    oled_write_raw_P(top_row, OLED_DISPLAY_HEIGHT / 2);
+    oled_set_cursor(LUNA_X, y_offset + 1);
+    oled_write_raw_P(bot_row, OLED_DISPLAY_HEIGHT / 2);
+}
+
+// ------------------------------------------
+// RENDER LAYAR KIRI (Master)
+// Layout: [Kanji 希望] [Layer] [Capslock] [Luna]
+// ------------------------------------------
+void render_master(void) {
+    // Kanji 希望 di atas (2 char x 16px = 4 baris pixel = baris 0-3 di mode 270)
+    render_kanji_left();
+
+    // Spacer
+    oled_set_cursor(0, 4);
+    oled_write_P(PSTR("     "), false);
+
+    // Label "Layer"
+    oled_set_cursor(0, 5);
+    oled_write_P(PSTR("Layer"), false);
+
+    // Nilai layer aktif
+    oled_set_cursor(0, 6);
+    switch (get_highest_layer(layer_state)) {
+        case _QWERTY: oled_write_P(PSTR("Base "), false); break;
+        case _LOWER:  oled_write_P(PSTR("Lower"), false); break;
+        case _RAISE:  oled_write_P(PSTR("Raise"), false); break;
+        case _ADJUST: oled_write_P(PSTR("Adj  "), false); break;
+        default:      oled_write_P(PSTR("?    "), false); break;
+    }
+
+    // Spacer
+    oled_set_cursor(0, 7);
+    oled_write_P(PSTR("     "), false);
+
+    // Caps Lock
+    oled_set_cursor(0, 8);
+    led_t led = host_keyboard_led_state();
+    oled_write_P(PSTR("Caps "), false);
+    oled_set_cursor(0, 9);
+    oled_write_P(led.caps_lock ? PSTR("ON   ") : PSTR("off  "), false);
+
+    // Spacer
+    oled_set_cursor(0, 10);
+    oled_write_P(PSTR("     "), false);
+
+    // "Pet" label
+    oled_set_cursor(0, 11);
+    oled_write_P(PSTR(" Pet "), false);
+
+    // Luna animasi (baris 12-13)
+    static uint8_t  luna_frame       = 0;
+    static uint32_t luna_frame_timer = 0;
+    if (timer_elapsed32(luna_frame_timer) > 150) {
+        luna_frame_timer = timer_read32();
+        luna_frame++;
+        // Handle jump cycle
+        if (luna_is_jumping) {
+            if (!luna_jumped_up) {
+                luna_jumped_up = true;
+            } else {
+                luna_is_jumping = false;
+                luna_jumped_up  = false;
+            }
+        }
+    }
+    // Clear baris luna sebelum render baru
+    oled_set_cursor(0, 12);
+    oled_write_P(PSTR("                "), false);
+    oled_set_cursor(0, 13);
+    oled_write_P(PSTR("                "), false);
+    render_luna_pose(luna_frame);
+}
+
+// ------------------------------------------
+// RENDER LAYAR KANAN (Slave)
+// Layout: [Kanji 夢を見た] [wpm] [angka WPM]
+// ------------------------------------------
+void render_slave(void) {
+    // Kanji 夢を見た di atas (4 char x 16px = 8 baris di mode 270)
+    render_kanji_right();
+
+    // Spacer
+    oled_set_cursor(0, 8);
+    oled_write_P(PSTR("     "), false);
+
+    // WPM label
+    oled_set_cursor(0, 9);
+    oled_write_P(PSTR("wpm  "), false);
+
+    // Angka WPM
+    oled_set_cursor(0, 10);
+    oled_write(get_u8_str(get_current_wpm(), '0'), false);
+}
+
+// ------------------------------------------
+// OLED TASK UTAMA — Smooth Dimming + Route Master/Slave
+// ------------------------------------------
+bool oled_task_user(void) {
+    // === SMOOTH BRIGHTNESS FADE ===
+    // 70% dari 255 = 178 (aktif), 40% dari 255 = 102 (dim), 0 = mati
+    static uint8_t  current_brightness = 178;
+    static uint32_t fade_timer         = 0;
+
+    uint32_t idle_time        = timer_elapsed32(custom_last_input);
+    uint8_t  target_brightness = 178;
+
+    if (idle_time > 30000) {
+        target_brightness = 0;
+    } else if (idle_time > 15000) {
+        target_brightness = 102;
+    }
+
+    if (timer_elapsed32(fade_timer) > 10) {
+        fade_timer = timer_read32();
+        if (current_brightness < target_brightness)      current_brightness++;
+        else if (current_brightness > target_brightness) current_brightness--;
+
+        if (current_brightness == 0) {
+            oled_off();
+            return false;
+        } else {
+            if (!is_oled_on()) oled_on();
+            oled_set_brightness(current_brightness);
+        }
+    }
+    if (current_brightness == 0) return false;
+
+    // === ROUTE RENDER ===
+    if (is_keyboard_master()) {
+        render_master();
+    } else {
+        render_slave();
+    }
+    return false;
+}
+#endif

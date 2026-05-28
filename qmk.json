@@ -1,0 +1,10 @@
+{
+  "userspace": {
+    "targets": [
+      {
+        "keyboard": "crkbd/rev1",
+        "keymap": "vieri"
+      }
+    ]
+  }
+}
