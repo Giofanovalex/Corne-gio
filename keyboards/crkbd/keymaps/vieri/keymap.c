@@ -259,44 +259,6 @@ void render_luna_pose(uint8_t frame) {
 // Layout: [Kibou] [Layer] [Capslock] [Luna]
 // ------------------------------------------
 void render_master(void) {
-    // Kanji 希望 di atas
-    render_kanji_left();
-
-    // Spacer
-    oled_set_cursor(0, 4);
-    oled_write_P(PSTR("     "), false);
-
-    // Label "Layer"
-    oled_set_cursor(0, 5);
-    oled_write_P(PSTR("Layer"), false);
-
-    // Nilai layer aktif
-    oled_set_cursor(0, 6);
-    switch (get_highest_layer(layer_state)) {
-        case _QWERTY: oled_write_P(PSTR("Base "), false); break;
-        case _LOWER:  oled_write_P(PSTR("Lower"), false); break;
-        case _RAISE:  oled_write_P(PSTR("Raise"), false); break;
-        case _ADJUST: oled_write_P(PSTR("Adj  "), false); break;
-        default:      oled_write_P(PSTR("?    "), false); break;
-    }
-
-    // Spacer
-    oled_set_cursor(0, 7);
-    oled_write_P(PSTR("     "), false);
-
-    // Caps Lock
-    oled_set_cursor(0, 8);
-    led_t led = host_keyboard_led_state();
-    oled_write_P(PSTR("Caps "), false);
-    oled_set_cursor(0, 9);
-    oled_write_P(led.caps_lock ? PSTR("ON   ") : PSTR("off  "), false);
-
-    // Spacer (baris 10-11, gantikan label "Pet" dengan spasi kosong)
-    oled_set_cursor(0, 10);
-    oled_write_P(PSTR("     "), false);
-    oled_set_cursor(0, 11);
-    oled_write_P(PSTR("     "), false);
-
     // Luna animasi (baris 12-13)
     static uint8_t  luna_frame       = 0;
     static uint32_t luna_frame_timer = 0;
@@ -328,22 +290,6 @@ void render_master(void) {
 // Dibuat sesederhana mungkin agar tidak crash dan tidak mengganggu komunikasi TRRS
 // ------------------------------------------
 void render_slave(void) {
-    // Baris 0-1: Label judul
-    oled_set_cursor(0, 0);
-    oled_write_P(PSTR("Yume "), false);
-    oled_set_cursor(0, 1);
-    oled_write_P(PSTR("o    "), false);
-    oled_set_cursor(0, 2);
-    oled_write_P(PSTR("Mita "), false);
-
-    // Spacer
-    oled_set_cursor(0, 3);
-    oled_write_P(PSTR("     "), false);
-    oled_set_cursor(0, 4);
-    oled_write_P(PSTR("-----"), false);
-    oled_set_cursor(0, 5);
-    oled_write_P(PSTR("     "), false);
-
     // WPM label
     oled_set_cursor(0, 6);
     oled_write_P(PSTR("wpm  "), false);

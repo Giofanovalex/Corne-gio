@@ -6,7 +6,7 @@
  * The Right half is connected via the TRRS cable and acts as the receiver/slave.
  * This resolves the issue where the right side does not respond due to EEPROM conflicts.
  */
-#define MASTER_LEFT
+#define MASTER_RIGHT
 
 // Definisikan pin serial secara eksplisit untuk komunikasi kiri <-> kanan
 // Corne Rev1 menggunakan pin D2 untuk komunikasi antar sisi via TRRS
