@@ -264,6 +264,12 @@ bool oled_task_user(void) {
     static uint8_t  current_brightness = 178;
     static uint32_t fade_timer         = 0;
 
+    // Sinkronisasi aktivitas ke sisi Slave menggunakan WPM
+    // Karena process_record_user mungkin tidak mendeteksi tombol dari sisi seberang
+    if (get_current_wpm() > 0) {
+        custom_last_input = timer_read32();
+    }
+
     uint32_t idle_time        = timer_elapsed32(custom_last_input);
     uint8_t  target_brightness = 178;
 
