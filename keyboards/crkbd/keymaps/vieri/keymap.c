@@ -302,4 +302,14 @@ bool oled_task_user(void) {
     }
     return false;
 }
+
+void matrix_scan_user(void) {
+    // Bangunkan OLED jika ada aktivitas mengetik (WPM > 0)
+    // Ini penting untuk sisi Slave yang OLED-nya sudah mati (karena oled_task_user berhenti saat mati)
+    if (get_current_wpm() > 0) {
+        if (!is_oled_on()) {
+            oled_on();
+        }
+    }
+}
 #endif
