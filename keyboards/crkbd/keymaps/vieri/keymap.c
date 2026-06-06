@@ -248,10 +248,27 @@ void render_luna_pose(uint8_t frame) {
     }
 
     uint8_t y_offset = (luna_is_jumping && !luna_jumped_up) ? LUNA_Y - 1 : LUNA_Y;
-    oled_set_cursor(LUNA_X, y_offset);
-    oled_write_raw_P(top_row, LUNA_FRAME_LENGTH);
-    oled_set_cursor(LUNA_X, y_offset + 1);
-    oled_write_raw_P(bot_row, LUNA_FRAME_LENGTH);
+    
+    // Bersihkan sisa lompatan
+    uint8_t clear_y = (luna_is_jumping && !luna_jumped_up) ? LUNA_Y + 1 : LUNA_Y - 1;
+    for (uint8_t x = 0; x < 32; x++) {
+        for (uint8_t y = clear_y * 8; y < clear_y * 8 + 8; y++) {
+            oled_write_pixel(x, y, false);
+        }
+    }
+
+    // Menggambar Luna pixel per pixel agar sesuai dengan rotasi layar vertikal
+    uint8_t base_y = y_offset * 8; 
+    for (uint8_t c = 0; c < 32; c++) {
+        uint8_t top_byte = pgm_read_byte(&top_row[c]);
+        uint8_t bot_byte = pgm_read_byte(&bot_row[c]);
+        for (uint8_t bit = 0; bit < 8; bit++) {
+            bool pixel_top = (top_byte >> bit) & 1;
+            bool pixel_bot = (bot_byte >> bit) & 1;
+            oled_write_pixel(c, base_y + bit, pixel_top);
+            oled_write_pixel(c, base_y + 8 + bit, pixel_bot);
+        }
+    }
 }
 
 // ------------------------------------------
@@ -275,13 +292,7 @@ void render_master(void) {
             }
         }
     }
-    // Clear baris luna dengan 0x00 agar tidak ada pixel stuck
-    // Setiap baris = 32 byte pada layar 270° Corne
-    static const char PROGMEM clear_row[LUNA_FRAME_LENGTH] = {0};
-    oled_set_cursor(LUNA_X, 12);
-    oled_write_raw_P(clear_row, LUNA_FRAME_LENGTH);
-    oled_set_cursor(LUNA_X, 13);
-    oled_write_raw_P(clear_row, LUNA_FRAME_LENGTH);
+    // Animasi dirender menggunakan oled_write_pixel di render_luna_pose
     render_luna_pose(luna_frame);
 }
 
